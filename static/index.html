@@ -73,99 +73,99 @@ body { font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background:l
 </div>
 
 <script>
-const chatMessages=document.getElementById('chatMessages');
-const messageInput=document.getElementById('messageInput');
-const sendButton=document.getElementById('sendButton');
-const clearButton=document.getElementById('clearButton');
-const voiceButton=document.getElementById('voiceButton');
-const chatForm=document.getElementById('chatForm');
-const loading=document.getElementById('loading');
-let conversationHistory=[];
+const chatMessages = document.getElementById('chatMessages');
+const messageInput = document.getElementById('messageInput');
+const sendButton = document.getElementById('sendButton');
+const clearButton = document.getElementById('clearButton');
+const voiceButton = document.getElementById('voiceButton');
+const chatForm = document.getElementById('chatForm');
+const loading = document.getElementById('loading');
+let conversationHistory = [];
 
-function addMessage(content,isUser=false){
-    const messageDiv=document.createElement('div');
-    messageDiv.className=`message ${isUser?'user':'assistant'}`;
-    const labelDiv=document.createElement('div');
-    labelDiv.className='message-label';
-    labelDiv.textContent=isUser?'You':'Assistant';
-    const contentDiv=document.createElement('div');
-    contentDiv.className='message-content';
-    contentDiv.textContent=content;
+function addMessage(content, isUser=false){
+    const messageDiv = document.createElement('div');
+    messageDiv.className = `message ${isUser?'user':'assistant'}`;
+    const labelDiv = document.createElement('div');
+    labelDiv.className = 'message-label';
+    labelDiv.textContent = isUser?'You':'Assistant';
+    const contentDiv = document.createElement('div');
+    contentDiv.className = 'message-content';
+    contentDiv.textContent = content;
     messageDiv.appendChild(labelDiv);
     messageDiv.appendChild(contentDiv);
     chatMessages.appendChild(messageDiv);
-    chatMessages.scrollTop=chatMessages.scrollHeight;
+    chatMessages.scrollTop = chatMessages.scrollHeight;
 }
 
-function showLoading(show){loading.style.display=show?'block':'none';}
+function showLoading(show){ loading.style.display = show ? 'block' : 'none'; }
 
 async function sendMessage(message){
-    if(!message)return;
+    if(!message) return;
     showLoading(true);
-    sendButton.disabled=true;
+    sendButton.disabled = true;
     try{
-        const response=await fetch('/chat',{
+        const response = await fetch('https://jeeva-gemini-backend.onrender.com/chat',{
             method:'POST',
             headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({message:message,history:conversationHistory})
+            body:JSON.stringify({message: message, history: conversationHistory})
         });
-        const data=await response.json();
+        const data = await response.json();
         addMessage(message,true);
         conversationHistory.push(`You: ${message}`);
         addMessage(data.response,false);
         conversationHistory.push(`Assistant: ${data.response}`);
-        conversationHistory=data.history;
+        conversationHistory = data.history;
 
         // Voice output
-        const utterance=new SpeechSynthesisUtterance(data.response);
+        const utterance = new SpeechSynthesisUtterance(data.response);
         speechSynthesis.speak(utterance);
-    }catch(err){console.error(err); addMessage("Error: "+(err.message||err),false);}
-    finally{showLoading(false); sendButton.disabled=false; messageInput.focus();}
+    }catch(err){ console.error(err); addMessage("Error: "+(err.message||err), false); }
+    finally{ showLoading(false); sendButton.disabled=false; messageInput.focus(); }
 }
 
 async function clearChat(){
     try{
-        const response=await fetch('/chat/clear',{method:'DELETE'});
+        const response = await fetch('https://jeeva-gemini-backend.onrender.com/chat/clear',{ method:'DELETE' });
         if(response.ok){
-            chatMessages.innerHTML=`
+            chatMessages.innerHTML = `
             <div class="message assistant">
                 <div class="message-label">Assistant</div>
                 <div class="message-content">
                     Hello! I'm Jeeva's AI assistant powered by Gemini. How can I help you today?
                 </div>
             </div>`;
-            conversationHistory=[];
+            conversationHistory = [];
         }
-    }catch(err){console.error('Error clearing chat:',err);}
+    }catch(err){ console.error('Error clearing chat:', err); }
 }
 
 // Voice input
-voiceButton.addEventListener('click',()=>{
-    const recognition=new (window.SpeechRecognition || window.webkitSpeechRecognition)();
-    recognition.lang='en-US';
-    recognition.interimResults=false;
-    recognition.maxAlternatives=1;
+voiceButton.addEventListener('click', ()=>{
+    const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+    recognition.lang = 'en-US';
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
 
-    recognition.onresult=(event)=>{
-        const speech=event.results[0][0].transcript;
-        messageInput.value=speech;
+    recognition.onresult = (event)=>{
+        const speech = event.results[0][0].transcript;
+        messageInput.value = speech;
         chatForm.dispatchEvent(new Event('submit'));
     };
-    recognition.onerror=(event)=>{console.error('Speech recognition error:',event.error);}
+    recognition.onerror = (event)=>{ console.error('Speech recognition error:', event.error); }
     recognition.start();
 });
 
-chatForm.addEventListener('submit',async(e)=>{
+chatForm.addEventListener('submit', async(e)=>{
     e.preventDefault();
-    const message=messageInput.value.trim();
-    if(message){messageInput.value=''; await sendMessage(message);}
+    const message = messageInput.value.trim();
+    if(message){ messageInput.value=''; await sendMessage(message); }
 });
 
-clearButton.addEventListener('click',clearChat);
+clearButton.addEventListener('click', clearChat);
 
 messageInput.focus();
-messageInput.addEventListener('keypress',(e)=>{
-    if(e.key==='Enter'&&!e.shiftKey){
+messageInput.addEventListener('keypress', (e)=>{
+    if(e.key==='Enter' && !e.shiftKey){
         e.preventDefault();
         chatForm.dispatchEvent(new Event('submit'));
     }
