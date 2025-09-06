@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Jeeva's Gemini Chat Bot</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background:linear-gradient(135deg,#667eea 0%,#764ba2 100%); min-height:100vh; display:flex; justify-content:center; align-items:center; }
+.chat-container { width:90%; max-width:800px; height:80vh; background:white; border-radius:20px; box-shadow:0 20px 40px rgba(0,0,0,0.1); display:flex; flex-direction:column; overflow:hidden; }
+.chat-header { background:linear-gradient(135deg,#667eea 0%,#764ba2 100%); color:white; padding:20px; text-align:center; }
+.chat-header h1 { font-size:24px; margin-bottom:5px; }
+.chat-header p { opacity:0.9; font-size:14px; }
+.chat-messages { flex:1; padding:20px; overflow-y:auto; background:#f8f9fa; }
+.message { margin-bottom:15px; display:flex; flex-direction:column; }
+.message.user { align-items:flex-end; }
+.message.assistant { align-items:flex-start; }
+.message-content { max-width:70%; padding:12px 16px; border-radius:18px; word-wrap:break-word; line-height:1.4; }
+.message.user .message-content { background:linear-gradient(135deg,#667eea 0%,#764ba2 100%); color:white; border-bottom-right-radius:5px; }
+.message.assistant .message-content { background:white; color:#333; border:1px solid #e1e5e9; border-bottom-left-radius:5px; }
+.message-label { font-size:12px; color:#666; margin-bottom:5px; font-weight:600; }
+.chat-input-container { padding:20px; background:white; border-top:1px solid #e1e5e9; }
+.chat-input-form { display:flex; gap:10px; }
+.chat-input { flex:1; padding:12px 16px; border:2px solid #e1e5e9; border-radius:25px; font-size:14px; outline:none; transition:border-color 0.3s ease; }
+.chat-input:focus { border-color:#667eea; }
+.send-button { padding:12px 24px; background:linear-gradient(135deg,#667eea 0%,#764ba2 100%); color:white; border:none; border-radius:25px; cursor:pointer; font-size:14px; font-weight:600; transition:transform 0.2s ease; }
+.send-button:hover { transform:translateY(-2px); }
+.send-button:disabled { opacity:0.6; cursor:not-allowed; transform:none; }
+.clear-button { padding:8px 16px; background:#dc3545; color:white; border:none; border-radius:20px; cursor:pointer; font-size:12px; margin-left:10px; }
+.loading { display:none; text-align:center; color:#666; font-style:italic; }
+.typing-indicator { display:flex; align-items:center; gap:5px; color:#666; font-style:italic; }
+.typing-dots { display:flex; gap:2px; }
+.typing-dot { width:6px; height:6px; background:#666; border-radius:50%; animation:typing 1.4s infinite ease-in-out; }
+.typing-dot:nth-child(1) { animation-delay:-0.32s; }
+.typing-dot:nth-child(2) { animation-delay:-0.16s; }
+.typing-dot:nth-child(3) { animation-delay:0s; }
+@keyframes typing { 0%,80%,100% { transform:scale(0); } 40% { transform:scale(1); } }
+@media(max-width:600px){.chat-container{width:95%;height:90vh;}.message-content{max-width:85%;}}
+</style>
+</head>
+<body>
+<div class="chat-container">
+    <div class="chat-header">
+        <h1>🤖 Jeeva's Gemini Chat Bot</h1>
+        <p>Powered by Google Gemini AI</p>
+    </div>
+    <div class="chat-messages" id="chatMessages">
+        <div class="message assistant">
+            <div class="message-label">Assistant</div>
+            <div class="message-content">
+                Hello! I'm Jeeva's AI assistant powered by Gemini. How can I help you today?
+            </div>
+        </div>
+    </div>
+    <div class="loading" id="loading">
+        <div class="typing-indicator">
+            <span>Assistant is typing</span>
+            <div class="typing-dots">
+                <div class="typing-dot"></div>
+                <div class="typing-dot"></div>
+                <div class="typing-dot"></div>
+            </div>
+        </div>
+    </div>
+    <div class="chat-input-container">
+        <form class="chat-input-form" id="chatForm">
+            <input type="text" class="chat-input" id="messageInput" placeholder="Type your message here..." autocomplete="off">
+            <button type="submit" class="send-button" id="sendButton">Send</button>
+            <button type="button" class="send-button" id="voiceButton">🎙️ Speak</button>
+            <button type="button" class="clear-button" id="clearButton">Clear</button>
+        </form>
+    </div>
+</div>
+
+<script>
+const chatMessages=document.getElementById('chatMessages');
+const messageInput=document.getElementById('messageInput');
+const sendButton=document.getElementById('sendButton');
+const clearButton=document.getElementById('clearButton');
+const voiceButton=document.getElementById('voiceButton');
+const chatForm=document.getElementById('chatForm');
+const loading=document.getElementById('loading');
+let conversationHistory=[];
+
+function addMessage(content,isUser=false){
+    const messageDiv=document.createElement('div');
+    messageDiv.className=`message ${isUser?'user':'assistant'}`;
+    const labelDiv=document.createElement('div');
+    labelDiv.className='message-label';
+    labelDiv.textContent=isUser?'You':'Assistant';
+    const contentDiv=document.createElement('div');
+    contentDiv.className='message-content';
+    contentDiv.textContent=content;
+    messageDiv.appendChild(labelDiv);
+    messageDiv.appendChild(contentDiv);
+    chatMessages.appendChild(messageDiv);
+    chatMessages.scrollTop=chatMessages.scrollHeight;
+}
+
+function showLoading(show){loading.style.display=show?'block':'none';}
+
+async function sendMessage(message){
+    if(!message)return;
+    showLoading(true);
+    sendButton.disabled=true;
+    try{
+        const response=await fetch('/chat',{
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({message:message,history:conversationHistory})
+        });
+        const data=await response.json();
+        addMessage(message,true);
+        conversationHistory.push(`You: ${message}`);
+        addMessage(data.response,false);
+        conversationHistory.push(`Assistant: ${data.response}`);
+        conversationHistory=data.history;
+
+        // Voice output
+        const utterance=new SpeechSynthesisUtterance(data.response);
+        speechSynthesis.speak(utterance);
+    }catch(err){console.error(err); addMessage("Error: "+(err.message||err),false);}
+    finally{showLoading(false); sendButton.disabled=false; messageInput.focus();}
+}
+
+async function clearChat(){
+    try{
+        const response=await fetch('/chat/clear',{method:'DELETE'});
+        if(response.ok){
+            chatMessages.innerHTML=`
+            <div class="message assistant">
+                <div class="message-label">Assistant</div>
+                <div class="message-content">
+                    Hello! I'm Jeeva's AI assistant powered by Gemini. How can I help you today?
+                </div>
+            </div>`;
+            conversationHistory=[];
+        }
+    }catch(err){console.error('Error clearing chat:',err);}
+}
+
+// Voice input
+voiceButton.addEventListener('click',()=>{
+    const recognition=new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+    recognition.lang='en-US';
+    recognition.interimResults=false;
+    recognition.maxAlternatives=1;
+
+    recognition.onresult=(event)=>{
+        const speech=event.results[0][0].transcript;
+        messageInput.value=speech;
+        chatForm.dispatchEvent(new Event('submit'));
+    };
+    recognition.onerror=(event)=>{console.error('Speech recognition error:',event.error);}
+    recognition.start();
+});
+
+chatForm.addEventListener('submit',async(e)=>{
+    e.preventDefault();
+    const message=messageInput.value.trim();
+    if(message){messageInput.value=''; await sendMessage(message);}
+});
+
+clearButton.addEventListener('click',clearChat);
+
+messageInput.focus();
+messageInput.addEventListener('keypress',(e)=>{
+    if(e.key==='Enter'&&!e.shiftKey){
+        e.preventDefault();
+        chatForm.dispatchEvent(new Event('submit'));
+    }
+});
+</script>
+</body>
+</html>
