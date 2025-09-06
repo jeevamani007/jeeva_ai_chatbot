@@ -9,6 +9,7 @@ import google.generativeai as genai
 from dotenv import load_dotenv
 import asyncio
 
+
 # Load environment variables
 load_dotenv()
 GEMINI_API_KEY = os.getenv("AIzaSyCic8d5-4Iwa04e9_DLRWae4dxtDNFnPkI") or "AIzaSyCic8d5-4Iwa04e9_DLRWae4dxtDNFnPkI"
