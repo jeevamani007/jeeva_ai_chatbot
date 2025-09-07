@@ -7,23 +7,24 @@ import os
 import traceback
 import google.generativeai as genai
 from dotenv import load_dotenv
-import asyncio
-
+import asyncio   
 
 # Load environment variables
 load_dotenv()
-GEMINI_API_KEY = os.getenv("AIzaSyCic8d5-4Iwa04e9_DLRWae4dxtDNFnPkI") or "AIzaSyCic8d5-4Iwa04e9_DLRWae4dxtDNFnPkI"
+GEMINI_API_KEY = os.getenv("AIzaSyCic8d5-4Iwa04e9_DLRWae4dxtDNFnPkI")  or "AIzaSyCic8d5-4Iwa04e9_DLRWae4dxtDNFnPkI"
 if not GEMINI_API_KEY:
     raise RuntimeError("Missing GEMINI_API_KEY in environment")
 
+# Configure Gemini
 genai.configure(api_key=GEMINI_API_KEY)
 
+# Create FastAPI app
 app = FastAPI()
 
 # Enable CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],  # Allow all origins (Frontend access)
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -41,16 +42,20 @@ class ChatResponse(BaseModel):
     response: str
     history: list
 
+# Conversation storage
 conversation_history = {}
 
+# Root route
 @app.get("/")
 async def root():
     return FileResponse("static/index.html")
 
+# Health check route
 @app.get("/health")
 async def health():
     return JSONResponse({"status": "ok", "gemini_key_set": bool(GEMINI_API_KEY)})
 
+# Chat route
 @app.post("/chat", response_model=ChatResponse)
 async def chat(chat_data: ChatMessage):
     try:
@@ -66,6 +71,7 @@ async def chat(chat_data: ChatMessage):
         # Simulate typing delay
         await asyncio.sleep(0.3)
 
+        # Generate response from Gemini
         model = genai.GenerativeModel("gemini-1.5-flash")
         response = model.generate_content(prompt)
         reply = response.text
@@ -78,6 +84,7 @@ async def chat(chat_data: ChatMessage):
         print("Chat Error:\n", traceback.format_exc())
         raise HTTPException(status_code=500, detail=f"Gemini error: {str(e)}")
 
+# Clear history route
 @app.delete("/chat/clear")
 async def clear_chat():
     global conversation_history
