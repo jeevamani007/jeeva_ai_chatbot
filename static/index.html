@@ -5,13 +5,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Jeeva's Gemini Chat Bot</title>
 <style>
-/* --- CSS same as before --- */
 * { margin:0; padding:0; box-sizing:border-box; }
 body { font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background:linear-gradient(135deg,#667eea 0%,#764ba2 100%); min-height:100vh; display:flex; justify-content:center; align-items:center; }
-.chat-container { width:90%; max-width:800px; height:80vh; background:white; border-radius:20px; box-shadow:0 20px 40px rgba(0,0,0,0.1); display:flex; flex-direction:column; overflow:hidden; }
+.chat-container { width:90%; max-width:800px; height:85vh; background:white; border-radius:20px; box-shadow:0 20px 40px rgba(0,0,0,0.1); display:flex; flex-direction:column; overflow:hidden; }
 .chat-header { background:linear-gradient(135deg,#667eea 0%,#764ba2 100%); color:white; padding:20px; text-align:center; }
 .chat-header h1 { font-size:24px; margin-bottom:5px; }
 .chat-header p { opacity:0.9; font-size:14px; }
+.system-prompt-container { padding:10px 20px; background:#f1f3f6; display:flex; gap:10px; align-items:center; border-bottom:1px solid #e1e5e9; }
+.system-prompt-container input { flex:1; padding:8px 12px; border:1px solid #ccc; border-radius:20px; font-size:14px; }
+.system-prompt-container button { padding:8px 16px; background:#28a745; color:white; border:none; border-radius:20px; cursor:pointer; }
+.system-prompt-container button:hover { opacity:0.9; }
 .chat-messages { flex:1; padding:20px; overflow-y:auto; background:#f8f9fa; }
 .message { margin-bottom:15px; display:flex; flex-direction:column; }
 .message.user { align-items:flex-end; }
@@ -45,6 +48,12 @@ body { font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background:l
         <h1>🤖 Jeeva's Gemini Chat Bot</h1>
         <p>Powered by Google Gemini AI</p>
     </div>
+
+    <div class="system-prompt-container">
+        <input type="text" id="systemPromptInput" placeholder="Enter custom system prompt...">
+        <button id="updatePromptButton">Set Prompt</button>
+    </div>
+
     <div class="chat-messages" id="chatMessages">
         <div class="message assistant">
             <div class="message-label">Assistant</div>
@@ -53,6 +62,7 @@ body { font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background:l
             </div>
         </div>
     </div>
+
     <div class="loading" id="loading">
         <div class="typing-indicator">
             <span>Assistant is typing</span>
@@ -63,6 +73,7 @@ body { font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background:l
             </div>
         </div>
     </div>
+
     <div class="chat-input-container">
         <form class="chat-input-form" id="chatForm">
             <input type="text" class="chat-input" id="messageInput" placeholder="Type your message here..." autocomplete="off">
@@ -81,9 +92,13 @@ const clearButton = document.getElementById('clearButton');
 const voiceButton = document.getElementById('voiceButton');
 const chatForm = document.getElementById('chatForm');
 const loading = document.getElementById('loading');
-let conversationHistory = [];
+const systemPromptInput = document.getElementById('systemPromptInput');
+const updatePromptButton = document.getElementById('updatePromptButton');
 
-// Flexible API base (works on localhost & Render)
+let conversationHistory = [];
+let sessionId = null;
+let systemPrompt = "You are Jeeva's AI assistant powered by Gemini. Always respond politely and concisely.";
+
 const API_BASE = window.location.origin;
 
 function addMessage(content, isUser=false){
@@ -108,46 +123,54 @@ async function sendMessage(message){
     showLoading(true);
     sendButton.disabled = true;
     try{
-        const response = await fetch(`${API_BASE}/chat`,{
+        const response = await fetch(`${API_BASE}/chat`, {
             method:'POST',
             headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({message: message, history: conversationHistory})
+            body:JSON.stringify({ message, history: conversationHistory }),
+            credentials: 'include'
         });
         const data = await response.json();
         addMessage(message,true);
-        conversationHistory.push(`You: ${message}`);
-        addMessage(data.response,false);
-        conversationHistory.push(`Assistant: ${data.response}`);
         conversationHistory = data.history;
-
+        addMessage(data.response,false);
+        if(!sessionId && data.session_id) sessionId = data.session_id;
         const utterance = new SpeechSynthesisUtterance(data.response);
         speechSynthesis.speak(utterance);
-    }catch(err){ console.error(err); addMessage("Error: "+(err.message||err), false); }
-    finally{ showLoading(false); sendButton.disabled=false; messageInput.focus(); }
+    }catch(err){
+        console.error(err);
+        addMessage("Error: "+(err.message||err), false);
+    } finally {
+        showLoading(false);
+        sendButton.disabled=false;
+        messageInput.focus();
+    }
 }
 
 async function clearChat(){
     try{
-        const response = await fetch(`${API_BASE}/chat/clear`,{ method:'DELETE' });
+        const response = await fetch(`${API_BASE}/chat/clear`, { method:'DELETE', credentials:'include' });
         if(response.ok){
-            chatMessages.innerHTML = `
-            <div class="message assistant">
-                <div class="message-label">Assistant</div>
-                <div class="message-content">
-                    Hello! I'm Jeeva's AI assistant powered by Gemini. How can I help you today?
-                </div>
-            </div>`;
+            chatMessages.innerHTML = `<div class="message assistant"><div class="message-label">Assistant</div><div class="message-content">Hello! I'm Jeeva's AI assistant powered by Gemini. How can I help you today?</div></div>`;
             conversationHistory = [];
+            sessionId = null;
         }
-    }catch(err){ console.error('Error clearing chat:', err); }
+    }catch(err){ console.error(err); }
 }
+
+updatePromptButton.addEventListener('click', ()=>{
+    const newPrompt = systemPromptInput.value.trim();
+    if(newPrompt) {
+        systemPrompt = newPrompt;
+        alert("System prompt updated!");
+        systemPromptInput.value = '';
+    }
+});
 
 voiceButton.addEventListener('click', ()=>{
     const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
     recognition.lang = 'en-US';
     recognition.interimResults = false;
     recognition.maxAlternatives = 1;
-
     recognition.onresult = (event)=>{
         const speech = event.results[0][0].transcript;
         messageInput.value = speech;
