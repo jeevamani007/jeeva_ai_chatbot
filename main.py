@@ -21,7 +21,7 @@ genai.configure(api_key=GEMINI_API_KEY)
 
 # System prompt (always applied)
 SYSTEM_PROMPT = """
-You are Jeeva's AI assistant powered by Gemini.
+You are Jeeva's AI.
 Always respond politely, provide helpful answers, and keep answers concise.
 If the user asks about the date or time, respond with the current date/time.
 """
